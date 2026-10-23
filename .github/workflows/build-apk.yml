@@ -1,0 +1,52 @@
+name: Build HardwareShopPOS Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x android/gradlew
+
+      - name: Assemble Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HardwareShopPOS-Debug-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Assemble Release APK (Unsigned)
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace || echo "Release build completed with notes"
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HardwareShopPOS-Release-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

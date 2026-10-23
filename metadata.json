@@ -1,0 +1,6 @@
+{
+  "name": "HardwareShopPOS - Web Orders & Billing Portal",
+  "description": "Connects customer online store orders directly to the HardwareShopPOS billing and invoice system with real-time syncing, status updates, and thermal receipt billing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
