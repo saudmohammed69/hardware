@@ -115,7 +115,7 @@ export const OrderTrackerModal: React.FC<OrderTrackerModalProps> = ({
         <div className="border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2">
             <span className="rounded-md bg-amber-500 text-slate-950 font-mono text-xs font-black px-2 py-0.5">
-              {order.id}
+              {order.orderNumber || order.id}
             </span>
             <span className="text-xs text-slate-500">Live Pickup Order</span>
           </div>

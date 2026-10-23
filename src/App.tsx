@@ -19,10 +19,11 @@ import {
   WebsiteOrder,
 } from './types';
 import { playOrderChime } from './utils/sound';
-import { Bell, CheckCircle, X, Sparkles } from 'lucide-react';
+import { Bell, CheckCircle, X, Sparkles, Store, Smartphone } from 'lucide-react';
 
 export default function App() {
-  const [mode, setMode] = useState<AppMode>('SPLIT');
+  const [mode, setMode] = useState<AppMode>('STOREFRONT');
+  const [isStaffMode, setIsStaffMode] = useState<boolean>(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
   const [orders, setOrders] = useState<WebsiteOrder[]>([]);
   const [completedBills, setCompletedBills] = useState<CompletedBill[]>([]);
@@ -327,6 +328,7 @@ export default function App() {
 
   const newOrdersCount = orders.filter((o) => o.status === 'NEW').length;
   const cartItemCount = cart.reduce((acc, i) => acc + (i.quantity || 1), 0);
+  const cartTotalPaisa = cart.reduce((acc, i) => acc + (i.lineTotalPaisa || 0), 0);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -334,15 +336,17 @@ export default function App() {
       <Header
         mode={mode}
         setMode={setMode}
+        isStaffMode={isStaffMode}
+        setIsStaffMode={setIsStaffMode}
+        shopName={settings.shopName}
+        shopPhone={settings.shopPhone}
         newOrdersCount={newOrdersCount}
         cartCount={cartItemCount}
+        cartTotalPaisa={cartTotalPaisa}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenQrModal={() => setIsQrModalOpen(true)}
-        soundEnabled={soundEnabled}
-        onToggleSound={() => {
-          setSoundEnabled(!soundEnabled);
-          if (!soundEnabled) playOrderChime();
-        }}
+        activeOrderNumber={trackedOrder?.id}
+        onTrackOrder={() => trackedOrder && setTrackedOrder(trackedOrder)}
       />
 
       {/* Real-time Order Arrival Banner / Toast */}
@@ -468,6 +472,59 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Customer Storefront Footer */}
+      {mode === 'STOREFRONT' && (
+        <footer className="border-t border-slate-200 bg-white mt-12 py-8 px-4 text-slate-600">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500 text-slate-950 font-bold">
+                  <Store className="h-4 w-4" />
+                </div>
+                <span className="font-extrabold text-slate-900 text-sm">{settings.shopName}</span>
+              </div>
+              <p className="text-slate-500 leading-relaxed">
+                Your neighborhood hardware, electrical, and plumbing store. Browse online, place your order, and pick up ready packed items at our counter.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="font-bold text-slate-900 uppercase tracking-wider block">Shop Location</span>
+              <p className="text-slate-500 leading-relaxed">{settings.shopAddress}</p>
+              <p className="font-mono text-slate-700">GSTIN: {settings.gstin}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="font-bold text-slate-900 uppercase tracking-wider block">Counter Hours & Phone</span>
+              <p className="text-slate-500">Everyday: {settings.openTime} – {settings.closeTime}</p>
+              <p className="font-bold text-amber-600">{settings.shopPhone}</p>
+              <p className="text-slate-400 text-[11px]">Pay via Cash, UPI (GPay/PhonePe), or Khata credit at counter</p>
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-slate-50 p-3.5 border border-slate-200">
+              <span className="font-bold text-slate-900 uppercase tracking-wider block">Shop Owner / Staff Login</span>
+              <p className="text-slate-500 text-[11px]">
+                Connect your Android POS device or view incoming web orders.
+              </p>
+              <button
+                onClick={() => {
+                  setIsStaffMode(true);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 text-white px-3 py-1.5 font-bold hover:bg-slate-800 transition"
+              >
+                <Smartphone className="h-3.5 w-3.5 text-amber-400" />
+                <span>Open Android POS Bridge</span>
+              </button>
+            </div>
+          </div>
+          <div className="max-w-7xl mx-auto mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-slate-400 text-[11px] gap-2">
+            <span>© {new Date().getFullYear()} {settings.shopName}. All rights reserved.</span>
+            <span>Fast counter billing connected with HardwareShopPOS</span>
+          </div>
+        </footer>
+      )}
 
       {/* Cart Drawer */}
       {isCartOpen && (

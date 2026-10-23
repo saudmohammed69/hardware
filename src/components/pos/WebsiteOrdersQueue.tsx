@@ -152,7 +152,7 @@ export const WebsiteOrdersQueue: React.FC<WebsiteOrdersQueueProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded">
-                        {order.id}
+                        {order.orderNumber || order.id}
                       </span>
                       {order.unread && (
                         <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950 animate-pulse">

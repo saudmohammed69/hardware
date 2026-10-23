@@ -75,6 +75,7 @@ export const BillingCounter: React.FC<BillingCounterProps> = ({
     const bill: CompletedBill = {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       orderId: sourceOrder?.id,
+      orderNumber: sourceOrder?.orderNumber,
       customerName: customerName || 'Counter Customer',
       customerPhone: customerPhone || '',
       items: cart,
@@ -107,7 +108,7 @@ export const BillingCounter: React.FC<BillingCounterProps> = ({
               <Sparkles className="h-5 w-5 shrink-0" />
               <div>
                 <span className="font-mono font-black text-xs bg-slate-950 text-white px-2 py-0.5 rounded">
-                  {sourceOrder.id}
+                  {sourceOrder.orderNumber || sourceOrder.id}
                 </span>
                 <span className="ml-2 font-bold text-sm">
                   Loaded from Customer Website Order: {sourceOrder.customer.name} (+91 {sourceOrder.customer.phone})

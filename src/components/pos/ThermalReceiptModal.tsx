@@ -123,7 +123,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
               {bill.orderId && (
                 <div className="flex justify-between text-amber-900 font-bold">
                   <span>WEB ORDER:</span>
-                  <span>{bill.orderId}</span>
+                  <span>{bill.orderNumber || (bill.orderId && bill.orderId.length > 12 ? bill.orderId.slice(0, 8) + '...' : bill.orderId)}</span>
                 </div>
               )}
               <div className="pt-0.5 truncate">

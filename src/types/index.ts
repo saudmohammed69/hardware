@@ -53,7 +53,10 @@ export interface CustomerInfo {
 }
 
 export interface WebsiteOrder {
-  id: string; // e.g. "WO-1048" or UUID
+  id: string; // UUID (matches Android Room database primary key)
+  orderNumber?: string; // Display number like "WO-8842"
+  revision?: number; // Monotonically increasing revision
+  seq?: number; // Monotonically increasing sequence cursor
   customer: CustomerInfo;
   items: CartLineItem[];
   orderNote?: string;
@@ -68,6 +71,10 @@ export interface WebsiteOrder {
   unread?: boolean;
   billedBillId?: string;
   cancellationReason?: string;
+  claimDevice?: string;
+  claimToken?: string;
+  serverBillId?: string;
+  finalizedPosBillSyncId?: string;
 }
 
 export type PaymentMode = 'CASH' | 'UPI' | 'SPLIT' | 'KHATA_CREDIT';
@@ -75,6 +82,7 @@ export type PaymentMode = 'CASH' | 'UPI' | 'SPLIT' | 'KHATA_CREDIT';
 export interface CompletedBill {
   id: string; // e.g. "INV-2026-0042"
   orderId?: string;
+  orderNumber?: string;
   customerName: string;
   customerPhone: string;
   items: CartLineItem[];

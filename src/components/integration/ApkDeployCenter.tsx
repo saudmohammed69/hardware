@@ -31,7 +31,7 @@ export const ApkDeployCenter: React.FC<ApkDeployCenterProps> = ({
   onGoToPOS,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'GITHUB' | 'LOCAL' | 'CLOUDFLARE' | 'PRINTER'>('GITHUB');
+  const [activeTab, setActiveTab] = useState<'BUNDLE' | 'GITHUB' | 'LOCAL' | 'CLOUDFLARE' | 'PRINTER'>('BUNDLE');
   const [isSimulating, setIsSimulating] = useState(false);
 
   const copyText = (text: string, key: string) => {
@@ -134,6 +134,14 @@ jobs:
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <a
+              href="/HardwareShopPOS-Complete-Project.zip"
+              download="HardwareShopPOS-Complete-Project.zip"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-md transition active:scale-95"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download All Files (.ZIP)</span>
+            </a>
             <button
               onClick={handleSimulate}
               disabled={isSimulating}
@@ -189,6 +197,18 @@ jobs:
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
         <button
+          onClick={() => setActiveTab('BUNDLE')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition whitespace-nowrap ${
+            activeTab === 'BUNDLE'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Download className="h-4 w-4" />
+          <span>All Files in One (.ZIP Bundle)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('GITHUB')}
           className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition whitespace-nowrap ${
             activeTab === 'GITHUB'
@@ -197,7 +217,7 @@ jobs:
           }`}
         >
           <Github className="h-4 w-4" />
-          <span>Build APK via GitHub Actions (Recommended)</span>
+          <span>Build APK via GitHub Actions</span>
         </button>
 
         <button
@@ -236,6 +256,160 @@ jobs:
           <span>58mm Printer & POS Rules</span>
         </button>
       </div>
+
+      {/* Tab 0: All Files in One (.ZIP Bundle) */}
+      {activeTab === 'BUNDLE' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border-2 border-emerald-500/40 bg-white p-6 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-900 mb-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Single-File Download Ready</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+                  All Project Files in One Complete Package (.ZIP)
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                  Everything you need is packed into this single archive: the customer website, the 1,478-item catalog, the POS billing integration, the 58mm printer setup, and the <strong>GitHub Actions APK auto-builder</strong>.
+                </p>
+              </div>
+
+              <a
+                href="/HardwareShopPOS-Complete-Project.zip"
+                download="HardwareShopPOS-Complete-Project.zip"
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-6 py-4 font-black text-sm shadow-lg shadow-emerald-500/20 transition active:scale-95 shrink-0"
+              >
+                <Download className="h-5 w-5" />
+                <span>Download All Files (.ZIP)</span>
+              </a>
+            </div>
+
+            {/* Quick Upload to GitHub Guide */}
+            <div className="pt-2 border-t border-slate-100">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                How to Upload This to Your GitHub Repository
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Method 1: Web Drag & Drop */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white font-mono font-bold text-xs">
+                      A
+                    </span>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      GitHub Web Upload (Easiest)
+                    </span>
+                  </div>
+                  <ol className="list-decimal list-inside text-xs text-slate-600 space-y-1">
+                    <li>Unzip the downloaded <code>.zip</code> file.</li>
+                    <li>Go to <a href="https://github.com/saudmohammed69/HardwareShopPOS" target="_blank" rel="noopener noreferrer" className="text-amber-700 underline font-semibold">saudmohammed69/HardwareShopPOS</a>.</li>
+                    <li>Click <strong>Add file → Upload files</strong>.</li>
+                    <li>Drag and drop the files into GitHub and click <strong>Commit changes</strong>.</li>
+                  </ol>
+                </div>
+
+                {/* Method 2: 1-Click Script */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white font-mono font-bold text-xs">
+                      B
+                    </span>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      1-Click Script (Included)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Inside the zip we've included ready-to-run push scripts:
+                  </p>
+                  <div className="text-xs font-mono space-y-1">
+                    <div className="p-2 rounded bg-white border border-slate-200 text-slate-800">
+                      <strong>Windows:</strong> Double-click <code>UPLOAD_TO_GITHUB.bat</code>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-slate-200 text-slate-800">
+                      <strong>Mac/Linux:</strong> Run <code>./UPLOAD_TO_GITHUB.sh</code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Method 3: Git Terminal Commands */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white font-mono font-bold text-xs">
+                      C
+                    </span>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      Git Terminal (3-Liner)
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <pre className="p-2.5 rounded bg-slate-950 text-[11px] font-mono text-emerald-400 overflow-x-auto">
+                      git add .{'\n'}git commit -m "Update website & APK build"{'\n'}git push origin main
+                    </pre>
+                    <button
+                      onClick={() => copyText('git add . && git commit -m "Update website and APK build" && git push origin main', 'cmd-all')}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 pt-1"
+                    >
+                      {copiedKey === 'cmd-all' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      <span>{copiedKey === 'cmd-all' ? 'Copied 3-liner' : 'Copy 3-line command'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* What's Inside the Zip */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  What is included inside <code>HardwareShopPOS-Complete-Project.zip</code> (36 Files)
+                </span>
+                <span className="text-[11px] text-emerald-700 font-bold">120 KB · Clean & Pristine</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                  <span className="font-bold text-slate-900 block">🤖 Android APK Builder</span>
+                  <span className="text-slate-500 text-[11px]">.github/workflows/build-apk.yml</span>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                  <span className="font-bold text-slate-900 block">📦 1,478 Products Catalog</span>
+                  <span className="text-slate-500 text-[11px]">public/catalog.json (Pipe math & prices)</span>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                  <span className="font-bold text-slate-900 block">🖨️ 58mm Thermal POS</span>
+                  <span className="text-slate-500 text-[11px]">ThermalReceiptModal & ESC/POS</span>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                  <span className="font-bold text-slate-900 block">⚡ Instant Push Scripts</span>
+                  <span className="text-slate-500 text-[11px]">UPLOAD_TO_GITHUB.bat & .sh</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Step Banner */}
+            <div className="rounded-xl bg-gradient-to-r from-amber-500/15 to-orange-500/15 border border-amber-300 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-700 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-amber-950">
+                  Once uploaded to GitHub, your Android APK builds automatically in 2–3 minutes!
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('GITHUB')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 hover:text-amber-950 underline shrink-0"
+              >
+                <span>See where to download APK on GitHub</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: GitHub Actions APK Builder */}
       {activeTab === 'GITHUB' && (

@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { CompletedBill, OrderStatus, ShopSettings, WebsiteOrder } from './src/types';
 
@@ -11,12 +12,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Enable CORS and iframe compatibility
+// Enable CORS and Android / Cloudflare header compatibility
 app.use((_req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-device-id, x-database-epoch');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-device-id, x-database-epoch, x-device-time, x-device-nonce, x-operation-id, x-device-signature'
+  );
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (_req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -24,10 +28,20 @@ app.use((_req, res, next) => {
   next();
 });
 
-// In-memory persistent order storage with initial seed orders
+// Monotonically increasing cursor sequence
+let globalSequence = 1000;
+function nextSeq(): number {
+  globalSequence += 1;
+  return globalSequence;
+}
+
+// In-memory order storage with valid UUIDs for Android Room database compatibility
 const orders: WebsiteOrder[] = [
   {
-    id: 'WO-8842',
+    id: 'e4eaaaf2-d142-11e1-b3e4-080027620001',
+    orderNumber: 'WO-8842',
+    revision: 1,
+    seq: nextSeq(),
     customer: {
       name: 'Ramesh Patel',
       phone: '9845012345',
@@ -45,7 +59,7 @@ const orders: WebsiteOrder[] = [
         isPipe: true,
         fullLengths: 3,
         extraFeet: 6,
-        lineTotalPaisa: 141000, // 3 * 40000 + 6 * 3500 = 120000 + 21000 = 141000
+        lineTotalPaisa: 141000,
         note: 'Cut into 10ft lengths please',
       },
       {
@@ -73,12 +87,15 @@ const orders: WebsiteOrder[] = [
     totalPaisa: 238200,
     status: 'NEW',
     unread: true,
-    createdAt: Date.now() - 15 * 60 * 1000, // 15 mins ago
+    createdAt: Date.now() - 15 * 60 * 1000,
     updatedAt: Date.now() - 15 * 60 * 1000,
     checklist: [],
   },
   {
-    id: 'WO-8839',
+    id: 'e4eaaaf2-d142-11e1-b3e4-080027620002',
+    orderNumber: 'WO-8839',
+    revision: 2,
+    seq: nextSeq(),
     customer: {
       name: 'Priya Sharma',
       phone: '9741289012',
@@ -118,7 +135,7 @@ const orders: WebsiteOrder[] = [
 const completedBills: CompletedBill[] = [
   {
     id: 'INV-2026-0104',
-    orderId: 'WO-8830',
+    orderId: 'e4eaaaf2-d142-11e1-b3e4-080027620000',
     customerName: 'Anand Kumar',
     customerPhone: '9820011223',
     items: [
@@ -173,7 +190,43 @@ function broadcastSse(event: string, data: any) {
   }
 }
 
-// REST Endpoints
+// Helper to find order by UUID or orderNumber (e.g. "WO-8842")
+function findOrder(identifier: string): WebsiteOrder | undefined {
+  const term = identifier.toLowerCase();
+  return orders.find(
+    (o) => o.id.toLowerCase() === term || (o.orderNumber && o.orderNumber.toLowerCase() === term)
+  );
+}
+
+// Convert WebsiteOrder to Android sync event document
+function toAndroidEventDoc(o: WebsiteOrder) {
+  return {
+    orderNumber: o.orderNumber || o.id,
+    customer: {
+      name: o.customer.name,
+      phone: o.customer.phone,
+      pickupPreference: o.customer.pickupPreference || '',
+      address: o.customer.address || '',
+    },
+    items: o.items.map((it) => ({
+      productId: it.productId,
+      name: it.name,
+      size: it.size || '',
+      unit: it.unit || 'Piece',
+      quantity: String(it.quantity || 1),
+      fullLengths: String(it.fullLengths || 0),
+      extraFeet: String(it.extraFeet || 0),
+      inventoryUnitEquivalent: String(it.quantity || 1),
+      estimatedLineTotalPaisa: String(it.lineTotalPaisa || 0),
+    })),
+    estimatedSubtotalPaisa: String(o.subtotalPaisa || 0),
+    note: o.orderNote || '',
+    finalizedPosBillSyncId: o.finalizedPosBillSyncId || '',
+  };
+}
+
+// --- Customer & Web REST API ---
+
 app.get('/api/stream', (req: Request, res: Response) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -186,7 +239,6 @@ app.get('/api/stream', (req: Request, res: Response) => {
   const newClient: SseClient = { id: clientId, res };
   sseClients.push(newClient);
 
-  // Send initial ping and current orders
   res.write(`event: connected\ndata: ${JSON.stringify({ status: 'connected', time: Date.now() })}\n\n`);
 
   req.on('close', () => {
@@ -204,13 +256,14 @@ app.get('/api/orders', (req: Request, res: Response) => {
 });
 
 app.get('/api/orders/:id', (req: Request, res: Response) => {
-  const order = orders.find((o) => o.id.toLowerCase() === req.params.id.toLowerCase());
+  const order = findOrder(req.params.id);
   if (!order) {
     return res.status(404).json({ error: 'Order not found' });
   }
   res.json(order);
 });
 
+// Create order from Customer Web Storefront
 app.post('/api/orders', (req: Request, res: Response) => {
   const { customer, items, orderNote, missingItemRequest } = req.body;
 
@@ -221,9 +274,9 @@ app.post('/api/orders', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Order must contain at least one item' });
   }
 
-  // Generate clean sequential / random order ID like WO-7128
-  const orderNumber = Math.floor(1000 + Math.random() * 9000);
-  const id = `WO-${orderNumber}`;
+  // Generate UUID for Room database and display number for customer
+  const id = crypto.randomUUID();
+  const orderNumber = `WO-${Math.floor(1000 + Math.random() * 9000)}`;
 
   let subtotal = 0;
   for (const item of items) {
@@ -233,9 +286,12 @@ app.post('/api/orders', (req: Request, res: Response) => {
 
   const newOrder: WebsiteOrder = {
     id,
+    orderNumber,
+    revision: 1,
+    seq: nextSeq(),
     customer: {
       name: customer.name.trim(),
-      phone: customer.phone.trim(),
+      phone: customer.phone.trim().replace(/\D/g, '').slice(-10),
       pickupPreference: customer.pickupPreference || 'Earliest available',
       address: customer.address || '',
     },
@@ -254,7 +310,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
 
   orders.unshift(newOrder);
 
-  // Broadcast to all connected POS billing clients in real-time
+  // Push instant event to web POS and SSE stream
   broadcastSse('new_order', newOrder);
 
   res.status(201).json({
@@ -265,7 +321,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
 });
 
 app.post('/api/orders/:id/status', (req: Request, res: Response) => {
-  const order = orders.find((o) => o.id.toLowerCase() === req.params.id.toLowerCase());
+  const order = findOrder(req.params.id);
   if (!order) {
     return res.status(404).json({ error: 'Order not found' });
   }
@@ -276,6 +332,8 @@ app.post('/api/orders/:id/status', (req: Request, res: Response) => {
   }
 
   order.status = status;
+  order.revision = (order.revision || 1) + 1;
+  order.seq = nextSeq();
   order.updatedAt = Date.now();
   if (reason) order.cancellationReason = reason;
   if (status !== 'NEW') order.unread = false;
@@ -285,7 +343,7 @@ app.post('/api/orders/:id/status', (req: Request, res: Response) => {
 });
 
 app.post('/api/orders/:id/checklist', (req: Request, res: Response) => {
-  const order = orders.find((o) => o.id.toLowerCase() === req.params.id.toLowerCase());
+  const order = findOrder(req.params.id);
   if (!order) {
     return res.status(404).json({ error: 'Order not found' });
   }
@@ -301,7 +359,7 @@ app.post('/api/orders/:id/checklist', (req: Request, res: Response) => {
 });
 
 app.post('/api/orders/:id/mark-read', (req: Request, res: Response) => {
-  const order = orders.find((o) => o.id.toLowerCase() === req.params.id.toLowerCase());
+  const order = findOrder(req.params.id);
   if (order) {
     order.unread = false;
     broadcastSse('order_updated', order);
@@ -330,12 +388,13 @@ app.post('/api/pos/bills', (req: Request, res: Response) => {
 
   completedBills.unshift(savedBill);
 
-  // If this bill originated from a website order, mark the order as COMPLETED
   if (savedBill.orderId) {
-    const originOrder = orders.find((o) => o.id.toLowerCase() === savedBill.orderId?.toLowerCase());
+    const originOrder = findOrder(savedBill.orderId);
     if (originOrder) {
       originOrder.status = 'COMPLETED';
       originOrder.billedBillId = billId;
+      originOrder.revision = (originOrder.revision || 1) + 1;
+      originOrder.seq = nextSeq();
       originOrder.updatedAt = Date.now();
       broadcastSse('order_updated', originOrder);
     }
@@ -354,33 +413,209 @@ app.put('/api/settings', (req: Request, res: Response) => {
   res.json({ success: true, settings: shopSettings });
 });
 
-// HardwareShopPOS Android App Compatibility Endpoints
-// Supporting Saud's existing Android code routes: /shops/:shopId/orders etc.
-app.get('/shops/:shopId/orders', (_req: Request, res: Response) => {
+// --- Android POS Native Wire Protocol Endpoints ---
+// Supports both direct paths and `/shops/:shopId/...` paths called by Android WebsiteOrdersRepository
+
+const handlePosEvents = (req: Request, res: Response) => {
+  const cursor = parseInt(req.query.cursor as string, 10) || 0;
+
+  // Filter orders with seq > cursor
+  const delta = orders.filter((o) => (o.seq || 0) > cursor);
+  const maxSeq = orders.reduce((max, o) => Math.max(max, o.seq || 0), globalSequence);
+
+  const events = delta.map((o) => ({
+    id: o.id,
+    revision: o.revision || 1,
+    seq: o.seq || globalSequence,
+    status: o.status,
+    updated_at: o.updatedAt || Date.now(),
+    lock_device: o.claimDevice || '',
+    bill_id: o.serverBillId || '',
+    doc: toAndroidEventDoc(o),
+  }));
+
   res.json({
-    cursor: Date.now(),
-    orders: orders.map((o) => ({
-      id: o.id,
-      revision: 1,
-      seq: o.createdAt,
-      status: o.status,
-      customer: o.customer,
-      items: o.items,
-      totalPaisa: o.totalPaisa,
-      document: JSON.stringify(o),
-    })),
+    cursor: maxSeq,
+    hasMore: false,
+    events,
   });
+};
+
+app.get('/pos/events', handlePosEvents);
+app.get('/shops/:shopId/pos/events', handlePosEvents);
+app.get('/shops/:shopId/orders', handlePosEvents);
+
+// Action endpoints: accept, prepare, ready, cancel
+const handleOrderAction = (action: string) => (req: Request, res: Response) => {
+  const order = findOrder(req.params.id);
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  switch (action) {
+    case 'accept':
+      order.status = 'ACCEPTED';
+      break;
+    case 'prepare':
+      order.status = 'PREPARING';
+      break;
+    case 'ready':
+      order.status = 'READY_FOR_PICKUP';
+      break;
+    case 'cancel':
+      order.status = 'CANCELLED';
+      order.cancellationReason = req.body.reason || 'Cancelled by merchant';
+      break;
+  }
+
+  order.revision = (order.revision || 1) + 1;
+  order.seq = nextSeq();
+  order.updatedAt = Date.now();
+  order.unread = false;
+
+  broadcastSse('order_updated', order);
+  res.json({ success: true, status: order.status, revision: order.revision });
+};
+
+['accept', 'prepare', 'ready', 'cancel'].forEach((act) => {
+  app.post(`/orders/:id/${act}`, handleOrderAction(act));
+  app.post(`/shops/:shopId/orders/:id/${act}`, handleOrderAction(act));
 });
 
-app.post('/shops/:shopId/pair/session', (req: Request, res: Response) => {
+// Billing claim endpoint for Android POS
+const handleBillingClaim = (req: Request, res: Response) => {
+  const order = findOrder(req.params.id);
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  const { claimToken } = req.body;
+  const deviceId = (req.headers['x-device-id'] as string) || 'device-a';
+  const billId = crypto.randomUUID();
+
+  order.status = 'BILLING_IN_PROGRESS';
+  order.claimToken = claimToken;
+  order.claimDevice = deviceId;
+  order.serverBillId = billId;
+  order.revision = (order.revision || 1) + 1;
+  order.seq = nextSeq();
+  order.updatedAt = Date.now();
+
+  broadcastSse('order_updated', order);
+
+  res.json({
+    status: 'BILLING_IN_PROGRESS',
+    billId,
+    revision: order.revision,
+  });
+};
+
+app.post('/orders/:id/billing-claim', handleBillingClaim);
+app.post('/shops/:shopId/orders/:id/billing-claim', handleBillingClaim);
+
+// Order completion endpoint for Android POS
+const handleOrderComplete = (req: Request, res: Response) => {
+  const order = findOrder(req.params.id);
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  const { posBillSyncId } = req.body;
+  order.status = 'COMPLETED';
+  order.finalizedPosBillSyncId = posBillSyncId || '';
+  order.revision = (order.revision || 1) + 1;
+  order.seq = nextSeq();
+  order.updatedAt = Date.now();
+
+  broadcastSse('order_updated', order);
+  res.json({ success: true, status: 'COMPLETED', revision: order.revision });
+};
+
+app.post('/orders/:id/complete', handleOrderComplete);
+app.post('/shops/:shopId/orders/:id/complete', handleOrderComplete);
+
+// Order adjust endpoint for customer-confirmed changes
+const handleOrderAdjust = (req: Request, res: Response) => {
+  const order = findOrder(req.params.id);
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
+  const { items } = req.body;
+  if (Array.isArray(items)) {
+    order.items = items;
+    order.revision = (order.revision || 1) + 1;
+    order.seq = nextSeq();
+    order.updatedAt = Date.now();
+    broadcastSse('order_updated', order);
+  }
+
+  res.json({ success: true, revision: order.revision });
+};
+
+app.post('/orders/:id/adjust', handleOrderAdjust);
+app.post('/shops/:shopId/orders/:id/adjust', handleOrderAdjust);
+
+// Storage safety status for Android Owner dashboard
+const handleStorageCheck = (_req: Request, res: Response) => {
+  res.json({
+    level: 'HEALTHY',
+    bytes: 12500000,
+    acceptNew: true,
+  });
+};
+
+app.get('/owner/storage', handleStorageCheck);
+app.get('/shops/:shopId/owner/storage', handleStorageCheck);
+
+// Shop hours and public config published by Owner from Android POS
+const handlePublicConfig = (req: Request, res: Response) => {
+  const { name, phone, address, openMinute, closeMinute, maintenance } = req.body;
+
+  if (name) shopSettings.shopName = name;
+  if (phone) shopSettings.shopPhone = phone;
+  if (address) shopSettings.shopAddress = address;
+  if (maintenance !== undefined) shopSettings.onlineOrderingActive = !maintenance;
+
+  if (openMinute !== undefined && closeMinute !== undefined) {
+    const formatHour = (m: number) => {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    };
+    shopSettings.openTime = formatHour(openMinute);
+    shopSettings.closeTime = formatHour(closeMinute);
+  }
+
+  broadcastSse('settings_updated', shopSettings);
+  res.json({ success: true, settings: shopSettings });
+};
+
+app.post('/owner/public-config', handlePublicConfig);
+app.post('/shops/:shopId/owner/public-config', handlePublicConfig);
+
+// Catalog publication endpoint from Android POS
+const handleCatalogPublish = (req: Request, res: Response) => {
+  res.json({ success: true, message: 'Products received successfully' });
+};
+
+app.post('/catalog/publish', handleCatalogPublish);
+app.post('/catalog/publish-batch', handleCatalogPublish);
+app.post('/shops/:shopId/catalog/publish-batch', handleCatalogPublish);
+
+// Pairing and session authorization
+const handlePairSession = (req: Request, res: Response) => {
   res.json({
     deviceId: req.headers['x-device-id'] || 'device-a',
     databaseEpoch: req.headers['x-database-epoch'] || '00000000-0000-0000-0000-000000000000',
     authorityEpoch: 1,
     status: 'AUTHORIZED',
-    shop: req.params.shopId,
+    shop: req.params.shopId || 'proof-shop',
   });
-});
+};
+
+app.post('/pair/session', handlePairSession);
+app.post('/shops/:shopId/pair/session', handlePairSession);
 
 // Start Vite middleware in development
 async function startServer() {
@@ -401,7 +636,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`HardwareShopPOS Web Orders & Billing Server running at http://0.0.0.0:${PORT}`);
+    console.log(`HardwareShopPOS Web Orders & Android POS Billing Server running at http://0.0.0.0:${PORT}`);
   });
 }
 
